@@ -1,5 +1,7 @@
 #include "keyboard.h"
 
+/**
+
 unsigned char inb(unsigned short int port) {
 
         unsigned char ret;
@@ -20,4 +22,4 @@ unsigned char scan(void) {
                 return key = scan;
         else
                 return 0;
-}
+}**/
