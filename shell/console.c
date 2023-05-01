@@ -1,139 +1,122 @@
-#include "../include/console.h"
+#include "console.h"
 #include "portmap.h"
-#include <stdint.h>
 #include "string.h"
 
+#define VGA_WIDTH       80
+#define VGA_HEIGHT      25
+#define BYTES_PER_CHAR  2
 
-int terminal_position = 0;
-char* const VGA_BUFFER = (char*) 0xb8000;
+#define is_special_char(c) ((c) <= 31)
 
-void update_cursor(int terminal_position)
+static void handle_special_char(char c);
+//char const VGA_BUFFER = (char) 0xb8000;
+static unsigned int terminal_position = 0;
+
+void update_cursor()
 {
-              uint16_t cursor_position = terminal_position >> 1;
-              outb(0x3D4, 0x0F);
-              outb(0x3D5, (uint8_t) (cursor_position));
-              outb(0x3D4, 0x0E);
-              outb(0x3D5, (uint8_t) (cursor_position >> 8));
+    uint16_t cursor_position = terminal_position >> 1;
+    outb(0x3D4, 0x0F);
+    outb(0x3D5, (uint8_t) cursor_position);
+    outb(0x3D4, 0x0E);
+    outb(0x3D5, (uint8_t) (cursor_position >> 8));
 }
 
-uint16_t get_cursor()
-{ 
-              uint16_t cursor_position = 0;
-              outb(0x3D4, 0x0F);
-              cursor_position |=inb(0x3D5);
-              outb(0x3D4, 0x0E);
-              cursor_position |= ((uint16_t)inb(0x3D5)) << 8;
-              return cursor_position;
+uint16_t get_cursor_position() {
+    uint16_t cursor_position = 0;
+    outb(0x3D4, 0x0F);
+    cursor_position |= inb(0x3D5);
+    outb(0x3D4, 0x0E);
+    cursor_position |= ((uint16_t) inb(0x3D5)) << 8;
+    return cursor_position;
 }
 
-void clear_terminal(){
-	for(int i=0; i<VGA_WIDTH*VGA_HEIGHT*VGA_BYTES_PER_CHARACTER; i+=2){
-		VGA_BUFFER[i] = 0;
-		VGA_BUFFER[i+1] = 0X07;
-	}
-}
-void handle_newline_character(){
-	terminal_position = terminal_position + 160 - (terminal_position % (VGA_WIDTH*VGA_BYTES_PER_CHARACTER));
-}
-
-void handle_special_character(char c){
-	switch(c){
-		case '\n':
-		handle_newline_character();
-		break;
-		
-	}
-}
-int is_special_character(char c) {
-	if(c >= '0' && c <= '9'){
-    		return  0;
-	}else if(c >= 'A' && c <= 'Z'){
-    		return  0;
-    	}else if(c >= 'a' && c <= 'z'){
-    		return  0;
-    	}else{
-    		return 1;
-    	} 
-}
-void print_character(char c){
-	if(is_special_character(c)){
-		handle_special_character(c);
-		return;	
-	}
-	VGA_BUFFER[terminal_position++] = c;
-	VGA_BUFFER[terminal_position++] = 0X07;
-}
-void print_string(char* str){
-	for(int i=0; str[i] != '\0'; i++){
-		print_character(str[i]);
-	}
-}
-
-void print_line(char* str){
-	print_string(str);
-	print_character('\n');
-}
-int len(int toPrint)
+void clear_terminal()
 {
-        if(toPrint == 0)
-        	return 1;
-        
-        int num_digits =0;
-        while (toPrint > 0)
-        {
-        	toPrint /=10;
-        	num_digits ++;
-        }
-                
-	return num_digits;
-}
-
-
-void strrev(char *arr, int start, int end)
-{
-      char temp;
-      if(start >= end)
-         return;
-         temp = *(arr + start);
-         *(arr + start) = *(arr + end);
-         *(arr + end) = temp;
-         start++;
-         end--;
-         strrev(arr,start,end);
-}
-char* itoa(int number, char *arr)
-{
-    int i = 0, r, negative = 0;
-    if (number == 0)
+    for (int i = 0; i < VGA_WIDTH * VGA_HEIGHT * BYTES_PER_CHAR;)
     {
-         arr[i] = '0';
-         arr[i + 1] = '\0';
-         return arr;
-     }
-     if(number < 0)
-     {
-           number *= -1;
-           negative = 1;
-     }
-     
-     while (number !=0)
-     {
-          r= number % 10;
-          arr[i++] = r+48;
-          number /= 10;
-     }
-     
-     strrev(arr , 0 , i-1);
-     arr[i] = '\0';
-     return arr;
+        VGA_BUFFER[i++] = 0;
+        VGA_BUFFER[i++] = 7;
+    }
+
+    terminal_position = 0;
+    update_cursor();
 }
-      
+
+void print_character(char c)
+{
+    if (is_special_char(c))
+    {
+        handle_special_char(c);
+    }
+    else
+    {
+        VGA_BUFFER[terminal_position++] = c;
+        VGA_BUFFER[terminal_position++] = 7;
+    }
+}
+
 void print_integer(int toPrint)
 {
-      int l= len(toPrint);
-      char buffer[l];
-      buffer= itoa(toPrint, buffer);
-      print_string(buffer);
-}           
+    char buf[11];
+    itoa(buf, toPrint);
+    print_string(buf);
+}
+
+void print_character_with_color(char c, Color background, Color foreground)
+{
+    if (is_special_char(c))
+    {
+        handle_special_char(c);
+    }
+    else
+    {
+        VGA_BUFFER[terminal_position++] = c;
+        VGA_BUFFER[terminal_position++] = (background << 4) | foreground;
+
+    }
+}
+
+void print_string(const char *str)
+{
+    while (*str != '\0')
+    {
+        print_character(*str++);
+    }
+}
+
+void print_string_with_color(const char *str, Color background, Color foreground)
+{
+    while (*str != '\0')
+    {
+        print_character_with_color(*str++, background, foreground);
+    }
+}
 
 
+void print_line(const char *str)
+{
+    print_string(str);
+    print_character('\n');
+}
+
+void print_line_with_color(const char *str, Color background, Color foreground)
+{
+    print_string_with_color(str, background, foreground);
+    print_character('\n');
+}
+
+static void handle_newline_character()
+{
+    terminal_position += (BYTES_PER_CHAR * VGA_WIDTH) - (terminal_position % (BYTES_PER_CHAR * VGA_WIDTH));
+}
+
+static void handle_special_char(char c)
+{
+    switch(c)
+    {
+        case '\n':
+            handle_newline_character();
+            break;
+    }
+}
+        	
