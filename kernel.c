@@ -1,11 +1,21 @@
-void main() {
+#include "console.h"
+#include "keyboard.h"
+const char prompt[]="shell>";
+void main(void) 
+{
+	unsigned char byte;
+	clear_terminal();
+	print_line(" ");
+	print_string_with_color(prompt,BLACK,LIGHT_CYAN);
+	print_string("cursor position:");
+	print_integer(get_cursor_position());
+	print_character('\n');
+        while (1) {
+        update_cursor();
+                while (byte = scan()) {
 
-	char* const VGA_BUFFER = (char*) 0xb8000;
-	char* str = "Hello World";
-
-	for (int i=0; str[i] != '\0'; i++) {
-		VGA_BUFFER[i*2] = str[i];
-	}
-
+                        print_character(charmap[byte]);
+                }
+        }
 	return;
 }
